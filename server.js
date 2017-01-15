@@ -3256,6 +3256,55 @@ cache(function(data, match, sendBadge, request) {
   });
 }));
 
+// GitHub commit status integration.
+camp.route(/^\/github\/commit-status\/([^\/]+)\/([^\/]+)\/(.+?)\.(svg|png|gif|jpg|json)$/,
+cache(function(data, match, sendBadge, request) {
+  var user = match[1];  // eg, qubyte/rubidium
+  var repo = match[2];
+  var ref = match[3]; // Can be a SHA, a branch name, or a tag name.
+  var format = match[4];
+
+  var apiUrl = githubApiUrl + '/repos/' + user + '/' + repo + '/commits/' + ref + '/status';
+  var label = ref;
+  var prmatch = ref.match(/^pull\/(\d+)\/head$/);
+  if(prmatch) {
+    // Format the pull request ref.
+    label = "PR#" + prmatch[1];
+  }
+  var badgeData = getBadgeData(' ' + label, data);
+  if (badgeData.template === 'social') {
+    badgeData.logo = badgeData.logo || logos.github;
+  }
+  githubAuth.request(request, apiUrl, {}, function(err, res, buffer) {
+    if (err != null || res.statusCode !== 200) {
+      badgeData.text[1] = 'inaccessible';
+      return sendBadge(format, badgeData);
+    }
+    try {
+      var data = JSON.parse(buffer);
+      var downloads = 0;
+      badgeData.text[1] = ' ' + data.state;
+      switch(data.state) {
+        case "success":
+          badgeData.colorscheme = 'brightgreen';
+          break;
+        case "failure":
+          badgeData.colorscheme = 'red';
+          break;
+        case "pending":
+          badgeData.colorscheme = 'yellow';
+          break;
+        default:
+          badgeData.text[1] = 'blank';
+      }
+      sendBadge(format, badgeData);
+    } catch(e) {
+      badgeData.text[1] = 'invalid';
+      sendBadge(format, badgeData);
+    }
+  });
+}));
+
 // GitHub forks integration.
 camp.route(/^\/github\/forks\/([^\/]+)\/([^\/]+)\.(svg|png|gif|jpg|json)$/,
 cache(function(data, match, sendBadge, request) {
